@@ -70,6 +70,17 @@ composer install
 composer test
 ```
 
+## Releasing
+
+`release.sh` bumps the semver tag and pushes it; Packagist picks it up via its
+GitHub webhook.
+
+```bash
+./release.sh         # patch: v1.2.3 -> v1.2.4
+./release.sh minor   # minor: v1.2.3 -> v1.3.0
+./release.sh major   # major: v1.2.3 -> v2.0.0
+```
+
 ## License
 
 MIT
