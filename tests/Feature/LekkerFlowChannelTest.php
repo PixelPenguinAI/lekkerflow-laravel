@@ -62,7 +62,36 @@ it('includes exception details when an exception is logged', function (): void {
             && $request['exception_class'] === RuntimeException::class
             && $request['line'] > 0
             && is_string($request['stack_trace'])
+            && str_contains($request['stack_trace'], 'LekkerFlowChannelTest.php')
             && ! array_key_exists('context', $request->data());
+    });
+});
+
+it('promotes a context trace string into stack_trace', function (): void {
+    Http::fake(['lekkerflow.test/*' => Http::response('', 202)]);
+
+    lekkerflowChannel()->error('Gateway down', [
+        'error' => 'timeout',
+        'trace' => "#0 app/Foo.php(10): boom()\n#1 app/Bar.php(20): foo()",
+    ]);
+
+    Http::assertSent(function (Request $request): bool {
+        return $request['stack_trace'] === "#0 app/Foo.php(10): boom()\n#1 app/Bar.php(20): foo()"
+            && $request['context'] === ['error' => 'timeout'];
+    });
+});
+
+it('includes a call-site stack trace when no exception or trace is provided', function (): void {
+    Http::fake(['lekkerflow.test/*' => Http::response('', 202)]);
+
+    lekkerflowChannel()->error('Integration boom', ['order_id' => 7]);
+
+    Http::assertSent(function (Request $request): bool {
+        return is_string($request['stack_trace'])
+            && $request['stack_trace'] !== ''
+            && str_contains($request['stack_trace'], 'LekkerFlowChannelTest')
+            && ! str_contains($request['stack_trace'], 'Monolog\\')
+            && $request['context'] === ['order_id' => 7];
     });
 });
 

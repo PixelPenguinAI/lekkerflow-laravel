@@ -44,9 +44,9 @@ The channel maps each log record to the LekkerFlow payload:
 |-------------------|---------------------------------------------------------------|
 | `message`         | The log message                                               |
 | `level`           | Monolog level → `critical \| error \| warning \| info \| debug` |
-| `exception_class`, `file`, `line`, `stack_trace` | From `context['exception']` when an exception is logged |
+| `exception_class`, `file`, `line`, `stack_trace` | From `context['exception']` when an exception is logged; otherwise `stack_trace` from `context['stack_trace']` / `context['trace']`, or a filtered call-site backtrace |
 | `url`             | From `context['url']` when present                            |
-| `context`         | Any remaining log context                                     |
+| `context`         | Any remaining log context (exception / url / trace keys removed) |
 | `environment`     | `LEKKERFLOW_ENVIRONMENT`, falling back to `APP_ENV`           |
 | `release`         | `LEKKERFLOW_RELEASE`                                          |
 

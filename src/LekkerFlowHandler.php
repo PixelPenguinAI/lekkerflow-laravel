@@ -56,7 +56,8 @@ class LekkerFlowHandler extends AbstractProcessingHandler
         $context = $record->context;
         $exception = $context['exception'] ?? null;
         $url = $context['url'] ?? null;
-        unset($context['exception'], $context['url']);
+        $explicitTrace = $context['stack_trace'] ?? $context['trace'] ?? null;
+        unset($context['exception'], $context['url'], $context['stack_trace'], $context['trace']);
 
         $payload = array_filter([
             'message' => $record->message,
@@ -73,6 +74,10 @@ class LekkerFlowHandler extends AbstractProcessingHandler
                 'line' => $exception->getLine(),
                 'stack_trace' => $exception->getTraceAsString(),
             ], fn ($value) => $value !== null && $value !== '');
+        } elseif (is_string($explicitTrace) && $explicitTrace !== '') {
+            $payload['stack_trace'] = $explicitTrace;
+        } else {
+            $payload['stack_trace'] = $this->callerStackTrace();
         }
 
         if ($context !== []) {
@@ -80,6 +85,52 @@ class LekkerFlowHandler extends AbstractProcessingHandler
         }
 
         return $payload;
+    }
+
+    /**
+     * Build a stack from the call site that invoked the logger, skipping
+     * Monolog / Laravel / package frames so LekkerFlow shows application code.
+     */
+    private function callerStackTrace(): string
+    {
+        $frames = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+        $lines = [];
+        $index = 0;
+
+        foreach ($frames as $frame) {
+            $class = $frame['class'] ?? '';
+            $file = $frame['file'] ?? '';
+
+            if ($this->isLoggingFrame($class, $file)) {
+                continue;
+            }
+
+            $location = $file !== ''
+                ? $file.'('.($frame['line'] ?? 0).')'
+                : '[internal]';
+            $call = $class.($frame['type'] ?? '').($frame['function'] ?? '{main}');
+            $lines[] = '#'.$index.' '.$location.': '.$call.'()';
+            $index++;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function isLoggingFrame(string $class, string $file): bool
+    {
+        if ($class !== '' && (
+            str_starts_with($class, 'Monolog\\')
+            || str_starts_with($class, 'PixelPenguin\\LekkerFlow\\')
+            || str_starts_with($class, 'Illuminate\\Log\\')
+            || str_starts_with($class, 'Illuminate\\Support\\Facades\\Log')
+            || str_starts_with($class, 'Psr\\Log\\')
+        )) {
+            return true;
+        }
+
+        return str_contains($file, DIRECTORY_SEPARATOR.'monolog'.DIRECTORY_SEPARATOR.'monolog'.DIRECTORY_SEPARATOR)
+            || str_contains($file, DIRECTORY_SEPARATOR.'Illuminate'.DIRECTORY_SEPARATOR.'Log'.DIRECTORY_SEPARATOR)
+            || str_contains($file, DIRECTORY_SEPARATOR.'laravel-lekkerflow'.DIRECTORY_SEPARATOR);
     }
 
     /**
